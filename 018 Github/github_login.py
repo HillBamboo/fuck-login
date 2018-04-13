@@ -9,7 +9,7 @@ __file__: github_login
 __time__: 2017/4/16 23:20
 """
 import requests
-from lxml import etree
+from bs4 import BeautifulSoup
 try:
     import cookielib
 except:
@@ -21,8 +21,9 @@ class GithubLogin(object):
     def __init__(self):
         self.headers = {
             'Referer': 'https://github.com/',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36',
-            'Host': 'github.com'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 Safari/537.36',
+            'Host': 'github.com',
+            'Upgrade-Insecure-Requests': '1'
         }
         self.login_url ='https://github.com/login'
         self.post_url = 'https://github.com/session'
@@ -34,41 +35,55 @@ class GithubLogin(object):
     def load_cookie(self):
         try:
             self.session.cookies.load(ignore_discard=True)
+            return True
         except:
-            print('cookie 不成功')
+            print('cookie 载入不成功')
+            return False
 
-    def get_param(self):
+    def get_token(self):
         response = self.session.get(self.login_url, headers=self.headers)
-        selector = etree.HTML(response.text)
-        field_one = selector.xpath('//div/input[2]/@value')
-        print(field_one)
-        return field_one
-        pass
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, 'lxml')
+            result = soup.select('#login > form > input[name="authenticity_token"]')
+            return result[0].get('value')
+        else:
+            print('failed')
 
+    def login(self):
+        if self.is_login():
+            print('登录成功！')
+        else:
+            email = input('请输入邮箱地址：\n>>> ')
+            pwd = input('请输入密码：\n>>> ')
 
-    def post_param(self, email, password):
-        post_data = {
-            'commit': 'Sign in',
-            'utf8': '✓',
-            'authenticity_token': self.get_param()[0],
-            'login': email,
-            'password': password
-        }
-        response = self.session.post(self.post_url, data=post_data, headers=self.headers)
-        self.session.cookies.save()
+            post_data = {
+                'commit': 'Sign in',
+                'utf8': '✓',
+                'authenticity_token': self.get_token(),
+                'login': email,
+                'password': pwd
+            }
+            response = self.session.post(self.post_url, data=post_data, headers=self.headers)
 
-        pass
+            if response.status_code == 200:
+                print('登录成功')
 
+            self.session.cookies.save()
 
-    def bool_login(self):
-        self.load_cookie()
-        response = self.session.get(self.logined_url, headers=self.headers)
-        selector = etree.HTML(response.text)
-        flag = selector.xpath('//div[@class="column two-thirds"]/dl/dt/label/text()')
-        print(u'个人设置Profile包括: %s'%flag)
-        pass
+    def is_login(self):
+        if not self.load_cookie():
+            return False
+        else:
+            response = self.session.get(self.logined_url, headers=self.headers, allow_redirects=False)
+            if response.status_code == 200:
+                # soup = BeautifulSoup(response.text, 'lxml')
+                # result = soup.select('#profile_10396980 > div')
+                # print(result[0].text)
+                return True
+            else:
+                return False
+
 
 if __name__ == "__main__":
     Github = GithubLogin()
-    Github.post_param(email='******', password='******')
-    # Github.bool_login()
+    Github.login()
